@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Picku Mobile Chat</title>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <style>
+        /* --- MOBILE OPTIMIZED THEME --- */
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        body { 
+            margin: 0; 
+            font-family: 'Courier New', monospace; 
+            background-color: #0d1117; 
+            color: #00ff00; 
+            height: 100vh; 
+            height: 100dvh; /* Mobile browser height fix */
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden; 
+        }
+
+        /* LOGIN SCREEN */
+        #login-screen { position: absolute; top:0; left:0; width: 100%; height: 100%; background: #000; z-index: 2000; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
+        .box { border: 1px solid #00ff00; padding: 20px; width: 100%; max-width: 320px; text-align: center; background: #000; box-shadow: 0 0 15px #00ff00; border-radius: 8px; }
+        .box h2 { font-size: 22px; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 2px; }
+        input, select { width: 100%; padding: 12px; margin: 8px 0; background: #111; border: 1px solid #333; color: #00ff00; font-family: 'Courier New', monospace; font-size: 16px; border-radius: 4px; }
+        input:focus { border-color: #00ff00; }
+        .btn { width: 100%; padding: 12px; background: #003300; color: #00ff00; border: 1px solid #00ff00; cursor: pointer; margin-top: 15px; font-size: 16px; font-weight: bold; border-radius: 4px; transition: 0.2s; }
+        .btn:active { background: #00ff00; color: black; transform: scale(0.98); }
+
+        /* HEADER */
+        #app-screen { display: none; height: 100%; flex-direction: column; width: 100%; }
+        .header { background: #161b22; padding: 0 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #30363d; height: 60px; flex-shrink: 0; }
+        .profile-thumb { width: 38px; height: 38px; border-radius: 50%; border: 2px solid #00ff00; object-fit: cover; margin-right: 10px; }
+        .user-info { display: flex; align-items: center; font-size: 14px; max-width: 70%; }
+        .logout-btn { font-size: 24px; cursor: pointer; padding: 5px; }
+
+        /* PROFILE MODAL */
+        #profile-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 3000; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+        #preview-img { width: 100px; height: 100px; border-radius: 50%; border: 3px solid #00ff00; object-fit: cover; margin-bottom: 20px; }
+
+        /* SEARCH BAR */
+        .search-container { padding: 8px 10px; background: #0d1117; display: flex; border-bottom: 1px solid #30363d; height: 55px; align-items: center; flex-shrink: 0; }
+        #searchUser { border: none; background: transparent; color: #00ff00; width: 100%; font-size: 16px; margin: 0; padding-left: 10px; }
+
+        /* CHAT AREA - MOST IMPORTANT FOR MOBILE */
+        #chat-section { flex: 1; display: none; flex-direction: column; background: #0d1117; overflow: hidden; position: relative; }
+        
+        /* Chat Header */
+        .chat-header { padding: 5px 10px; background: #0f151c; border-bottom: 1px solid #30363d; display: flex; align-items: center; justify-content: space-between; height: 50px; flex-shrink: 0; }
+        
+        /* Messages Scroll Area */
+        #messages-box { 
+            flex: 1; 
+            overflow-y: auto; 
+            padding: 15px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 10px; 
+            scroll-behavior: smooth; 
+            -webkit-overflow-scrolling: touch; /* Smooth scroll on iOS */
+        }
+        
+        .msg-row { display: flex; width: 100%; font-size: 14px; align-items: flex-end; }
+        .sent { justify-content: flex-end; }
+        .received { justify-content: flex-start; }
+        
+        .bubble-container { display: flex; align-items: center; gap: 8px; max-width: 80%; }
+        .sent .bubble-container { flex-direction: row-reverse; }
+        
+        .bubble { padding: 10px 14px; border-radius: 12px; background: #161b22; border: 1px solid #30363d; cursor: pointer; word-wrap: break-word; line-height: 1.4; position: relative; }
+        .unlocked .bubble { background: #1f6feb; color: white; border: none; font-family: sans-serif; font-size: 15px; }
+        
+        .chat-img, .chat-video { width: 100%; border-radius: 8px; margin-top: 5px; max-height: 200px; object-fit: cover; }
+
+        /* INPUT AREA (KEYBOARD FIX) */
+        .footer { 
+            padding: 8px; 
+            background: #161b22; 
+            display: flex; 
+            gap: 8px; 
+            align-items: center; 
+            border-top: 1px solid #30363d; 
+            min-height: 60px; 
+            flex-shrink: 0; /* Prevents shrinking */
+            position: sticky;
+            bottom: 0;
+        }
+        #msgInput { flex: 1; border-radius: 20px; padding: 10px 15px; margin: 0; background: #0d1117; border: 1px solid #30363d; font-size: 16px; }
+        .icon-btn { font-size: 22px; color: #00ff00; background: none; border: none; padding: 8px; display: flex; align-items: center; justify-content: center; }
+
+        /* GAME PANEL */
+        #game-panel { display: none; background: #000; border-bottom: 1px solid #00ff00; padding: 10px; flex-direction: column; align-items: center; width: 100%; position: absolute; top: 50px; left: 0; z-index: 100; height: 350px; }
+        .tic-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; width: 200px; margin: 10px 0; }
+        .cell { aspect-ratio: 1/1; background: #111; border: 1px solid #00ff00; display: flex; align-items: center; justify-content: center; font-size: 28px; cursor: pointer; }
+
+        /* VIDEO CALL MODAL */
+        #video-call-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 5000; flex-direction: column; }
+        #remote-video { width: 100%; height: 100%; object-fit: cover; }
+        #local-video { width: 100px; height: 140px; position: absolute; top: 20px; right: 20px; border: 2px solid #00ff00; border-radius: 8px; z-index: 5001; background: #000; object-fit: cover; }
+        .call-controls { position: absolute; bottom: 40px; width: 100%; display: flex; justify-content: center; z-index: 5002; }
+        .end-call-btn { background: #ff0000; color: white; border: none; padding: 15px 40px; border-radius: 50px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+    </style>
+</head>
+<body>
+
+    <div id="profile-modal">
+        <h3 style="color:#00ff00">IDENTITY SETUP</h3>
+        <img id="preview-img" src="https://cdn-icons-png.flaticon.com/512/149/149071.png">
+        <input type="file" id="profile-pic-input" style="display:none" onchange="previewProfilePic()">
+        <button class="btn" style="width:auto" onclick="document.getElementById('profile-pic-input').click()">CHANGE PHOTO</button>
+        <input type="text" id="bio-input" placeholder="ENTER STATUS / BIO">
+        <div style="display:flex; gap:15px; width:100%;">
+            <button class="btn" onclick="saveProfile()">SAVE</button>
+            <button class="btn" style="background:#330000; border-color:red;" onclick="toggleProfileModal()">CANCEL</button>
+        </div>
+    </div>
+
+    <div id="login-screen">
+        <div class="box">
+            <h2>SYSTEM LOGIN</h2>
+            <input type="text" id="username" placeholder="USER ID">
+            <input type="password" id="password" placeholder="PASSWORD">
+            <input type="password" id="my-pin" placeholder="SET SECRET PIN (4 DIGIT)">
+            <button class="btn" onclick="handleAuth()">ACCESS TERMINAL</button>
+            <p onclick="toggleReg()" style="font-size:13px; cursor:pointer; margin-top:20px; color:#00aa00; text-decoration: underline;">[ CREATE NEW ID ]</p>
+        </div>
+    </div>
+
+    <div id="app-screen">
+        <div class="header">
+            <div class="user-info" onclick="toggleProfileModal()">
+                <img id="my-profile-pic" class="profile-thumb" src="">
+                <div style="overflow: hidden;">
+                    <span id="display-id" style="font-weight:bold; font-size:16px; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span>
+                    <span id="my-bio" style="font-size:11px; color:#00aa00; white-space:nowrap;"></span>
+                </div>
+            </div>
+            <span class="logout-btn" onclick="location.reload()">🚪</span>
+        </div>
+
+        <div class="search-container">
+            <span style="padding-right:10px; font-size:18px;">🔍</span>
+            <input type="text" id="searchUser" placeholder="Enter Friend ID..." autocomplete="off">
+            <button class="btn" style="width:auto; margin:0; padding:8px 15px;" onclick="searchFriend()">GO</button>
+        </div>
+
+        <div id="game-panel">
+            <div style="display:flex; justify-content:space-between; width:100%; margin-bottom:5px;">
+                <span style="font-size:16px; font-weight:bold;">TIC-TAC-TOE</span>
+                <span onclick="toggleGame()" style="cursor:pointer; color:red; font-size:24px;">×</span>
+            </div>
+            <div class="tic-board" id="tic-board"></div>
+            <div id="game-status" style="margin:5px 0; font-size:14px;">Waiting...</div>
+            <button class="btn" style="width:auto; padding:8px 20px;" onclick="resetGameRequest()">RESTART GAME</button>
+        </div>
+
+        <div id="chat-section">
+            <div class="chat-header">
+                <div style="display:flex; align-items:center; overflow:hidden; max-width: 60%;">
+                    <img id="friend-pic" class="profile-thumb" src="" style="width:32px; height:32px;">
+                    <div style="line-height:1.2; overflow:hidden;">
+                        <span id="friend-name" style="font-weight:bold; color:white; font-size:14px; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span>
+                    </div>
+                </div>
+                
+                <div style="display:flex; align-items:center; gap:5px;">
+                    <select id="timer-select" style="width:auto; padding:5px; font-size:11px; background:black; color:yellow; border:1px solid yellow; height:30px; margin:0;">
+                        <option value="off">OFF</option>
+                        <option value="24h">24H</option>
+                        <option value="7d">7D</option>
+                    </select>
+                    <button onclick="clearAllChat()" style="background:#ff0000; color:white; border:none; padding:0 8px; font-size:11px; border-radius:4px; height:30px;">CLR</button>
+                </div>
+            </div>
+
+            <div id="messages-box"></div>
+
+            <div class="footer">
+                <button class="icon-btn" onclick="toggleGame()">🎮</button>
+                <button class="icon-btn" onclick="document.getElementById('fileInput').click()">📎</button>
+                <input type="file" id="fileInput" style="display:none" onchange="uploadFile()">
+                <input type="text" id="msgInput" placeholder="Type..." autocomplete="off">
+                <button class="icon-btn" onclick="sendMessage()" style="color:#00ff00; font-size:24px;">➤</button>
+                <button class="icon-btn" onclick="startVideoCall()">📹</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="video-call-modal">
+        <video id="remote-video" autoplay playsinline></video>
+        <video id="local-video" autoplay playsinline muted></video>
+        <div class="call-controls">
+            <button class="end-call-btn" onclick="endCall()">END CALL</button>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io(); 
+        let myID, chattingWith, userPIN;
+        let isUnlocked = false, isRegister = false;
+        let chatHistory = [], gameBoard = Array(9).fill('');
+        let peer, localStream, myTurn = true, mySymbol = 'X';
+
+        // Auto-Scroll Logic
+        function scrollToBottom() {
+            const box = document.getElementById('messages-box');
+            setTimeout(() => { box.scrollTop = box.scrollHeight; }, 100);
+        }
+
+        // --- AUTH LOGIC ---
+        function toggleReg() { 
+            isRegister = !isRegister; 
+            document.querySelector('.box h2').innerText = isRegister ? "NEW REGISTRY" : "SYSTEM LOGIN"; 
+        }
+
+        async function handleAuth() {
+            const u = document.getElementById('username').value.trim();
+            const p = document.getElementById('password').value;
+            userPIN = document.getElementById('my-pin').value;
+            if(!u || !p || !userPIN) return alert("All fields required!");
+
+            const res = await fetch(isRegister ? '/register' : '/login', {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({username:u, password:p})
+            });
+            const data = await res.json();
+            
+            if(data.success) {
+                if(isRegister) { 
+                    alert("ID Created! Please Login now."); 
+                    isRegister=false; toggleReg(); 
+                } else {
+                    myID = u;
+                    document.getElementById('login-screen').style.display = 'none';
+                    document.getElementById('app-screen').style.display = 'flex';
+                    document.getElementById('display-id').innerText = myID;
+                    
+                    // Profile Setup
+                    const defaultPic = "https://cdn-icons-png.flaticon.com/512/149/149071.png";
+                    document.getElementById('my-profile-pic').src = data.pic || defaultPic;
+                    document.getElementById('preview-img').src = data.pic || defaultPic;
+                    document.getElementById('my-bio').innerText = data.bio || "Spy Mode";
+                    document.getElementById('bio-input').value = data.bio || "";
+
+                    socket.emit('join', myID);
+                    initPeer(); initBoard();
+                }
+            } else alert(data.msg);
+        }
+
+        // --- PROFILE LOGIC ---
+        function toggleProfileModal() { const m = document.getElementById('profile-modal'); m.style.display = m.style.display==='flex'?'none':'flex'; }
+        function previewProfilePic() { const f = document.getElementById('profile-pic-input').files[0]; if(f) document.getElementById('preview-img').src = URL.createObjectURL(f); }
+        async function saveProfile() {
+            const bio = document.getElementById('bio-input').value;
+            const file = document.getElementById('profile-pic-input').files[0];
+            const fd = new FormData(); fd.append('username', myID); fd.append('bio', bio); if(file) fd.append('profilePic', file);
+            
+            const res = await fetch('/update-profile', { method: 'POST', body: fd });
+            const data = await res.json();
+            if(data.success) {
+                document.getElementById('my-profile-pic').src = data.profilePic || document.getElementById('my-profile-pic').src;
+                document.getElementById('my-bio').innerText = data.bio;
+                toggleProfileModal();
+            } else alert("Update Failed");
+        }
+
+        // --- CHAT LOGIC ---
+        async function searchFriend() {
+            const f = document.getElementById('searchUser').value.trim();
+            if(!f) return;
+            const res = await fetch('/search-user?q='+f);
+            const data = await res.json();
+            if(data.success) {
+                chattingWith = data.foundUser;
+                document.getElementById('chat-section').style.display = 'flex';
+                document.getElementById('messages-box').innerHTML = '';
+                chatHistory = [];
+                document.getElementById('friend-name').innerText = chattingWith;
+                document.getElementById('friend-pic').src = data.pic || "https://cdn-icons-png.flaticon.com/512/149/149071.png";
+                
+                const msgs = await (await fetch(`/get-messages?user1=${myID}&user2=${chattingWith}`)).json();
+                msgs.forEach(m => addMessageToHistory(m));
+                renderChat();
+                
+                // Hide keyboard on mobile
+                document.getElementById('searchUser').blur(); 
+            } else alert("User Not Found");
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('msgInput');
+            const txt = input.value;
+            const timerVal = document.getElementById('timer-select').value;
+            if(!txt) return;
+            socket.emit('privateMessage', { sender: myID, receiver: chattingWith, msg: txt, type: 'text', timer: timerVal });
+            input.value = '';
+            input.focus();
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            const timerVal = document.getElementById('timer-select').value;
+            if(!file) return;
+            
+            const fd = new FormData(); fd.append('myFile', file);
+            const res = await fetch('/upload', { method:'POST', body:fd });
+            const data = await res.json();
+            fileInput.value = ''; 
+
+            if(data.success) {
+                let type = file.type.startsWith('video') ? 'video' : 'image';
+                socket.emit('privateMessage', { sender: myID, receiver: chattingWith, msg: "", fileUrl: data.url, type: type, timer: timerVal });
+            }
+        }
+
+        function clearAllChat() {
+            if(confirm("DELETE ALL MESSAGES PERMANENTLY?")) {
+                socket.emit('clearChat', { sender: myID, receiver: chattingWith });
+            }
+        }
+        socket.on('chatCleared', () => { chatHistory = []; renderChat(); });
+
+        function deleteMsg(id) {
+            if(confirm("Delete this message?")) socket.emit('deleteForEveryone', { msgId: id, sender: myID, receiver: chattingWith });
+        }
+        socket.on('messageDeleted', (msgId) => { chatHistory = chatHistory.filter(m => m._id !== msgId); renderChat(); });
+
+        socket.on('receiveMessage', (data) => {
+            if(data.sender === chattingWith || data.sender === myID) {
+                addMessageToHistory(data);
+                renderChat();
+            }
+        });
+
+        function addMessageToHistory(msg) {
+            msg.fakeCode = "0x" + Math.floor(Math.random()*99999).toString(16).toUpperCase();
+            chatHistory.push(msg);
+        }
+
+        function renderChat() {
+            const box = document.getElementById('messages-box');
+            box.innerHTML = '';
+            chatHistory.forEach(msg => {
+                const isMe = msg.sender === myID;
+                const div = document.createElement('div');
+                div.className = `msg-row ${isMe ? 'sent' : 'received'} ${isUnlocked ? 'unlocked' : ''}`;
+                
+                let content = !isUnlocked ? `<span style="color:#00aa00; font-family:monospace; letter-spacing:1px;">🔒 ENCRYPTED<br>${msg.fakeCode}</span>` : 
+                    (msg.type === 'image' ? `<img src="${msg.fileUrl}" class="chat-img">` : 
+                     msg.type === 'video' ? `<video src="${msg.fileUrl}" controls class="chat-video"></video>` : msg.message || msg.msg);
+
+                // Delete button only for sender
+                div.innerHTML = `
+                    <div class="bubble-container">
+                        ${isMe ? `<span style="font-size:16px; color:red; cursor:pointer;" onclick="deleteMsg('${msg._id}')">🗑</span>` : ''}
+                        <div class="bubble" onclick="askToUnlock()">${content}</div>
+                    </div>
+                `;
+                box.appendChild(div);
+            });
+            scrollToBottom();
+        }
+
+        function askToUnlock() {
+            if (isUnlocked) return;
+            const input = prompt("ENTER DECRYPTION PIN:");
+            if (input === userPIN) { isUnlocked = true; renderChat(); } 
+            else if(input !== null) alert("ACCESS DENIED");
+        }
+
+        // --- GAME LOGIC ---
+        function initBoard() { const b = document.getElementById('tic-board'); b.innerHTML=''; for(let i=0; i<9; i++) { const d=document.createElement('div'); d.className='cell'; d.id='c'+i; d.onclick=()=>playMove(i); b.appendChild(d); } }
+        function toggleGame() { const p=document.getElementById('game-panel'); p.style.display=p.style.display==='flex'?'none':'flex'; }
+        function playMove(i) { if(!chattingWith || gameBoard[i]!=='' || !myTurn) return; updateBoardUI(i, mySymbol); myTurn=false; socket.emit('gameMove', {receiver:chattingWith, index:i, symbol:mySymbol}); }
+        socket.on('gameMove', (d)=>{ document.getElementById('game-panel').style.display='flex'; updateBoardUI(d.index, d.symbol); myTurn=true; mySymbol=d.symbol==='X'?'O':'X'; });
+        function updateBoardUI(i,s) { gameBoard[i]=s; document.getElementById('c'+i).innerText=s; checkWin(); }
+        function checkWin() { [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]].forEach(c=>{ if(gameBoard[c[0]]&&gameBoard[c[0]]===gameBoard[c[1]]&&gameBoard[c[0]]===gameBoard[c[2]]) { document.getElementById('game-status').innerText=gameBoard[c[0]]+" WINS!"; myTurn=false; }}); }
+        function resetGameRequest() { gameBoard.fill(''); initBoard(); socket.emit('gameReset', {receiver:chattingWith}); myTurn=true; }
+        socket.on('gameReset', ()=>{ gameBoard.fill(''); initBoard(); });
+
+        // --- VIDEO CALL LOGIC ---
+        function initPeer() { 
+            peer = new Peer("picku-"+myID); 
+            peer.on('call', (call)=>{ 
+                if(confirm("INCOMING SECURE VIDEO CALL... ACCEPT?")) {
+                    navigator.mediaDevices.getUserMedia({video:true,audio:true}).then(s=>{ 
+                        document.getElementById('video-call-modal').style.display='flex'; 
+                        document.getElementById('local-video').srcObject=s; 
+                        localStream=s; 
+                        call.answer(s); 
+                        call.on('stream', r=>document.getElementById('remote-video').srcObject=r); 
+                    }); 
+                }
+            }); 
+        }
+        function startVideoCall() { 
+            if(!chattingWith) return; 
+            document.getElementById('video-call-modal').style.display='flex'; 
+            navigator.mediaDevices.getUserMedia({video:true,audio:true}).then(s=>{ 
+                document.getElementById('local-video').srcObject=s; 
+                localStream=s; 
+                const c=peer.call("picku-"+chattingWith, s); 
+                c.on('stream', r=>document.getElementById('remote-video').srcObject=r); 
+            }); 
+        }
+        function endCall() { 
+            document.getElementById('video-call-modal').style.display='none'; 
+            if(localStream) localStream.getTracks().forEach(t=>t.stop()); 
+            location.reload(); // Refresh to clean connection
+        }
+    </script>
+</body>
+</html>
